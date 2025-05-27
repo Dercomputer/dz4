@@ -1,6 +1,7 @@
 import json
 from socket import socket, AF_INET, SOCK_STREAM
 import sqlite3
+import re
 
 
 def connection_db():
@@ -145,17 +146,33 @@ ROUTES = {
         "/": handle_main,
         "/about": handle_about,
         "clients": handle_get_all_db,
-        "clients/1": handle_get_db
+        re.compile(r"clients/(\d+)"): handle_get_db
     },
     "POST": {
         "clients": handle_post
     },
     "PATCH": {
-        "clients/1": handle_patch
+        re.compile(r"clients/(\d+)"): handle_patch
     },
     "DEL": {
-        "clients/1": handle_delete
+        re.compile(r"clients/(\d+)"): handle_delete
     }
 }
+
+
+def find_methods(method, path):
+    if method not in ROUTES:
+        return None, None
+
+    for route, handle in ROUTES[method].items():
+        if isinstance(route, str):
+            if route == path:
+                return handle, {}
+        elif isinstance(route, re.Pattern):
+            find = route.match(path)
+            if find:
+                return handle, {"id": int(find.group(1))}
+    return None, None
+
 if __name__ == "__main__":
     start_server()
