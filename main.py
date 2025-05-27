@@ -5,7 +5,7 @@ import re
 
 
 def connection_db():
-    conn = sqlite3.connect("data_base")
+    conn = sqlite3.connect("data_base.db")
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS clients(
                    id INTEGER,
@@ -138,6 +138,7 @@ def handle_main(method, path, headers, body):
             "/clients": "Управление клиентами"
         }
     }
+    print("Пользователь находится на главной странице")
     return 200, json.dumps(info)
 
 
@@ -145,15 +146,35 @@ def handle_about(method, path, headers, body):
     info = {
         "message": "Сервер умеет: работать с GET, POST, DELETE, PATCH"
     }
+    print("Пользователь на странице about")
     return 200, json.dumps(info)
 
 
-def handle_get_all_db():
-    ...
+def handle_get_all_db(method, path, headers, body):
+    try:
+        cursor = db_connect.cursor()
+        cursor.execute("SELECT * FROM clients")
+        clients = [{"id": row[0], "name": row[1]} for row in cursor.fetchall()]
+        return 200, json.dumps(clients)
+    except Exception as err:
+        print(f"Ошибка базы данных: {err}")
+        return  500, json.dumps({"error": "database error"})
 
 
-def handle_get_db():
-    ...
+
+def handle_get_db(method, path, headers, bod, id):
+    try:
+        cursor = db_connect.cursor()
+        cursor.execute(f"Select id, name from clients where id = ?",(id,))
+        client = cursor.fetchone()
+        print(client)
+        if client:
+            return 200, json.dumps({"id": client[0], "name": client[1]})
+        else:
+            return 404, json.dumps({"error": "Client not found"})
+    except Exception as err:
+        print(f"Ошибка базы данных: {err}")
+        return 500, json.dumps({"error": "database error"})
 
 
 def handle_post():
@@ -172,17 +193,17 @@ ROUTES = {
     "GET": {
         "/": handle_main,
         "/about": handle_about,
-        "clients": handle_get_all_db,
-        re.compile(r"clients/(\d+)"): handle_get_db
+        "/clients": handle_get_all_db,
+        re.compile(r"^/clients/(\d+)$"): handle_get_db
     },
     "POST": {
-        "clients": handle_post
+        "/clients": handle_post
     },
     "PATCH": {
-        re.compile(r"clients/(\d+)"): handle_patch
+        re.compile(r"/clients/(\d+)"): handle_patch
     },
     "DELETE": {
-        re.compile(r"clients/(\d+)"): handle_delete
+        re.compile(r"/clients/(\d+)"): handle_delete
     }
 }
 
