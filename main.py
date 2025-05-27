@@ -1,3 +1,4 @@
+import json
 from socket import socket, AF_INET, SOCK_STREAM
 import sqlite3
 
@@ -19,8 +20,71 @@ db_connect = connection_db()
 
 
 def parse(r):
-    request = r.split('\r\n')
-    print(request)
+    try:
+        request = r.split('\r\n')
+        if not request[0]:
+            return None, None, None, None
+        method, path, _ = request[0].split(" ")
+        headers = {}
+        body = None
+        body_started = False
+        for line in request[1:]:
+            if not line and not body_started:
+                body_started = True
+                continue
+            if not body_started:
+                if ': ' in line:
+                    key, value = line.split(': ', 1)
+                    headers[key] = value
+            else:
+                body = line
+
+        return method, path, headers, body
+    except Exception as err:
+        print(f"Ошибка обработки запроса: {err}")
+        return None, None, None, None
+
+
+
+def create_response(status_code, body=None, headers=None):
+    status_text = {
+        200: 'OK',
+        201: 'Created',
+        204: 'No Content',
+        400: 'Bad Request',
+        404: 'Not Found',
+        405: 'Method Not Allowed',
+        500: 'Internal Server Error'
+    }.get(status_code, 'Unknown')
+
+    response = f"HTTP/1.1 {status_code} {status_text}\r\n"
+    response += f"Content-Type: application/json\r\n"
+
+    if headers:
+        for key, value in headers.value():
+            response += f"{key}: {value}\r\n"
+    if body:
+        response += f"Content-Length: {len(body)}\r\n"
+        response += "\r\n"
+        response += body
+    else:
+        response += "\r\n"
+
+    return response.encode("utf-8")
+
+
+def handle_client(client_conn):
+    try:
+        request_data = client_conn.recv(1024).decode("utf-8")
+        if not request_data:
+            return
+
+    except Exception as err:
+        print(f"Ошибка при обработке {err}")
+        err_response = json.dumps({"error": "Internal server error"})
+        client_conn.send(create_response(500, err_response))
+    finally:
+        client_conn.close()
 
 
 def start_server():
@@ -34,10 +98,12 @@ def start_server():
         while True:
             conn_client, addr = server.accept()
             print(f"Слушаем {addr}")
+            handle_client(conn_client)
     except KeyboardInterrupt:
         print("Выключаем сервер и закрываем базу данных")
         db_connect.close()
         server.close()
+
 
 if __name__ == "__main__":
     start_server()
