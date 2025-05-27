@@ -22,7 +22,7 @@ db_connect = connection_db()
 
 def parse(r):
     try:
-        request = r.split('\r\n')
+        request = r.decode("utf-8").split('\r\n')
         if not request[0]:
             return None, None, None, None
         method, path, _ = request[0].split(" ")
@@ -79,13 +79,30 @@ def handle_client(client_conn, addr):
         if not request_data:
             return
 
-        method, path, headers, body = parse(request_data.decode())
+        method, path, headers, body = parse(request_data)
 
         if not method:
             client_conn.send(create_response(400, json.dumps({"error": "Invalid request"})))
             return
 
         print(f"Получен запрос {method} {path} от {addr[0]}")
+
+        handle, params = find_methods(method, path)
+
+        if handle:
+            try:
+                if params:
+                    status_code, response_body = handle(method, path, headers, body, **params)
+                else:
+                    status_code, response_body = handle(method, path, headers, body)
+                client_conn.send(create_response(status_code, response_body))
+            except Exception as err:
+                print(f"Ошибка обработчика: {err}")
+                err_response = json.dumps({"error": "Internal server error"})
+                client_conn.send(create_response(500, err_response))
+        else:
+            ...
+
 
     except Exception as err:
         print(f"Ошибка при обработке {err}")
@@ -113,12 +130,22 @@ def start_server():
         server.close()
 
 
-def handle_main():
-    ...
+def handle_main(method, path, headers, body):
+    info = {
+        "message": "Ура, заработало",
+        "endpoints": {
+            "/about": "Информация о том что поддерживает сервер",
+            "/clients": "Управление клиентами"
+        }
+    }
+    return 200, json.dumps(info)
 
 
-def handle_about():
-    ...
+def handle_about(method, path, headers, body):
+    info = {
+        "message": "Сервер умеет: работать с GET, POST, DELETE, PATCH"
+    }
+    return 200, json.dumps(info)
 
 
 def handle_get_all_db():
@@ -154,7 +181,7 @@ ROUTES = {
     "PATCH": {
         re.compile(r"clients/(\d+)"): handle_patch
     },
-    "DEL": {
+    "DELETE": {
         re.compile(r"clients/(\d+)"): handle_delete
     }
 }
