@@ -45,7 +45,6 @@ def parse(r):
         return None, None, None, None
 
 
-
 def create_response(status_code, body=None, headers=None):
     status_text = {
         200: 'OK',
@@ -73,11 +72,19 @@ def create_response(status_code, body=None, headers=None):
     return response.encode("utf-8")
 
 
-def handle_client(client_conn):
+def handle_client(client_conn, addr):
     try:
-        request_data = client_conn.recv(1024).decode("utf-8")
+        request_data = client_conn.recv(1024)
         if not request_data:
             return
+
+        method, path, headers, body = parse(request_data.decode())
+
+        if not method:
+            client_conn.send(create_response(400, json.dumps({"error": "Invalid request"})))
+            return
+
+        print(f"Получен запрос {method} {path} от {addr[0]}")
 
     except Exception as err:
         print(f"Ошибка при обработке {err}")
@@ -90,7 +97,7 @@ def handle_client(client_conn):
 def start_server():
     server = socket(AF_INET, SOCK_STREAM)
     server.bind(('localhost', 12000))
-    server.listen(1)
+    server.listen(5)
 
     print("Запускаем сервер (в данном случае на 127.0.0.1:12000)")
 
@@ -98,12 +105,57 @@ def start_server():
         while True:
             conn_client, addr = server.accept()
             print(f"Слушаем {addr}")
-            handle_client(conn_client)
+            handle_client(conn_client, addr)
     except KeyboardInterrupt:
         print("Выключаем сервер и закрываем базу данных")
         db_connect.close()
         server.close()
 
 
+def handle_main():
+    ...
+
+
+def handle_about():
+    ...
+
+
+def handle_get_all_db():
+    ...
+
+
+def handle_get_db():
+    ...
+
+
+def handle_post():
+    ...
+
+
+def handle_patch():
+    ...
+
+
+def handle_delete():
+    ...
+
+
+ROUTES = {
+    "GET": {
+        "/": handle_main,
+        "/about": handle_about,
+        "clients": handle_get_all_db,
+        "clients/1": handle_get_db
+    },
+    "POST": {
+        "clients": handle_post
+    },
+    "PATCH": {
+        "clients/1": handle_patch
+    },
+    "DEL": {
+        "clients/1": handle_delete
+    }
+}
 if __name__ == "__main__":
     start_server()
