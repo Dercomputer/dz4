@@ -88,7 +88,6 @@ def handle_client(client_conn, addr):
         print(f"Получен запрос {method} {path} от {addr[0]}")
 
         handle, params = find_methods(method, path)
-
         if handle:
             try:
                 if params:
@@ -155,6 +154,7 @@ def handle_get_all_db(method, path, headers, body):
         cursor = db_connect.cursor()
         cursor.execute("SELECT * FROM clients")
         clients = [{"id": row[0], "name": row[1]} for row in cursor.fetchall()]
+        print("Пользователь сделал GET запрос ко всей базе данных")
         return 200, json.dumps(clients)
     except Exception as err:
         print(f"Ошибка базы данных: {err}")
@@ -162,12 +162,12 @@ def handle_get_all_db(method, path, headers, body):
 
 
 
-def handle_get_db(method, path, headers, bod, id):
+def handle_get_db(method, path, headers, body, id):
     try:
         cursor = db_connect.cursor()
         cursor.execute(f"Select id, name from clients where id = ?",(id,))
         client = cursor.fetchone()
-        print(client)
+        print("Пользователь сделал GET запрос по определенному id")
         if client:
             return 200, json.dumps({"id": client[0], "name": client[1]})
         else:
@@ -177,8 +177,23 @@ def handle_get_db(method, path, headers, bod, id):
         return 500, json.dumps({"error": "database error"})
 
 
-def handle_post():
-    ...
+def handle_post(method, path, headers, body):
+    try:
+        cursor = db_connect.cursor()
+        data = json.loads(body)
+        if "name" not in data:
+            return 400, json.dumps({"error": "Name is requered"})
+        elif "id" not in data:
+            return 400, json.dumps({"error": "Id is requered"})
+        cursor.execute("INSERT INTO clients VALUES (?, ?)", (data["id"], data["name"]))
+        db_connect.commit()
+        return 201, json.dumps({"message": "Client created"})
+    except json.JSONDecodeError:
+        return 400, json.dumps({"error": "Invalid JSON format"})
+    except Exception as err:
+        print(f"Ошибка базы данных: {err}")
+        return 500, json.dumps({"error": "database error"})
+
 
 
 def handle_patch():
