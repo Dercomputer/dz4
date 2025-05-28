@@ -100,7 +100,9 @@ def handle_client(client_conn, addr):
                 err_response = json.dumps({"error": "Internal server error"})
                 client_conn.send(create_response(500, err_response))
         else:
-            ...
+            methods = ["GET", "POST", "PATCH", "DELETE"]
+            client_conn.send(create_response(405, json.dumps({"error": "Method not allowed",
+                                                              "allowed methods": methods})))
 
 
     except Exception as err:
@@ -158,14 +160,13 @@ def handle_get_all_db(method, path, headers, body):
         return 200, json.dumps(clients)
     except Exception as err:
         print(f"Ошибка базы данных: {err}")
-        return  500, json.dumps({"error": "database error"})
-
+        return 500, json.dumps({"error": "database error"})
 
 
 def handle_get_db(method, path, headers, body, id):
     try:
         cursor = db_connect.cursor()
-        cursor.execute(f"Select id, name from clients where id = ?",(id,))
+        cursor.execute(f"Select id, name from clients where id = ?", (id,))
         client = cursor.fetchone()
         print("Пользователь сделал GET запрос по определенному id")
         if client:
@@ -187,6 +188,7 @@ def handle_post(method, path, headers, body):
             return 400, json.dumps({"error": "Id is requered"})
         cursor.execute("INSERT INTO clients VALUES (?, ?)", (data["id"], data["name"]))
         db_connect.commit()
+        print(f"Пользователь добавил запись в таблицу с id: {data["id"]} и name: {data["name"]}")
         return 201, json.dumps({"message": "Client created"})
     except json.JSONDecodeError:
         return 400, json.dumps({"error": "Invalid JSON format"})
@@ -195,13 +197,37 @@ def handle_post(method, path, headers, body):
         return 500, json.dumps({"error": "database error"})
 
 
+def handle_patch(method, path, headers, body, id):
+    try:
+        data = json.loads(body)
+        if "name" not in data:
+            return 400, json.dumps({"error": "Name is requered"})
+        cursor = db_connect.cursor()
+        cursor.execute("UPDATE clients SET name = ? WHERE id = ?", (data['name'], id))
+        if cursor.rowcount == 0:
+            return 404, json.dumps({"error": "Client not found"})
+        db_connect.commit()
+        print(f"Пользователь изменил запись в таблицу с id: {id} изменив name: {data["name"]}")
+        return 200, json.dumps({"message": "Client updated"})
+    except json.JSONDecodeError:
+        return 400, json.dumps({"error": "Invalid JSON format"})
+    except Exception as err:
+        print(f"Ошибка базы данных: {err}")
+        return 500, json.dumps({"error": "database error"})
 
-def handle_patch():
-    ...
 
-
-def handle_delete():
-    ...
+def handle_delete(method, path, headers, body, id):
+    try:
+        cursor = db_connect.cursor()
+        cursor.execute("DELETE FROM clients WHERE id = ?", (id,))
+        if cursor.rowcount == 0:
+            return 404, json.dumps({"error": "Client not found"})
+        db_connect.commit()
+        print(f"Пользователь удалил запись с id: {id}")
+        return 204, ""
+    except Exception as err:
+        print(f"Ошибка базы данных: {err}")
+        return 500, json.dumps({"error": "database error"})
 
 
 ROUTES = {
@@ -236,6 +262,7 @@ def find_methods(method, path):
             if find:
                 return handle, {"id": int(find.group(1))}
     return None, None
+
 
 if __name__ == "__main__":
     start_server()
